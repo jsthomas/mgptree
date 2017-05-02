@@ -55,7 +55,7 @@ import optparse
 import re, sys, pickle, textwrap
 import requests
 
-GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rectangle]\n %s }"
+GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rectangle]\n %s}"
 
 DEBUG = False
 
@@ -66,9 +66,9 @@ def build_opt_parser():
 
     p.add_option('--scrape', '-s', dest="scrape_on", action="store_true",
                  default=False, help="Recover data from the MGP.")
-    p.add_option('--plot', '-p',  dest="graph_on", action="store_true",
+    p.add_option('--plot', '-p', dest="graph_on", action="store_true",
                  default=False, help="Use graphviz to draw a geneaology.")
-    p.add_option('--generations', '-g',  dest="gen_depth", default=3,
+    p.add_option('--generations', '-g', dest="gen_depth", default=3,
                  help="Determines how many generations into the past to search/print.")
 
     p.add_option('--input', '-i', dest="input_file", default=None)
@@ -85,18 +85,18 @@ def main():
     if options.verbose_on:
         sys.stdout.write("Verbose option is on. Printing progress.\n")
 
-    operation_list = [ options.scrape_on, options.graph_on ]
-    true_count = operation_list.count( True )
+    operation_list = [options.scrape_on, options.graph_on]
+    true_count = operation_list.count(True)
 
     if options.scrape_on:
-        names = validate_scrape( parser, options )
-        nodes = scrape( names, int(options.gen_depth) )
-        pickle_graph_ds( nodes, options.output_file )
+        names = validate_scrape(parser, options)
+        nodes = scrape(names, int(options.gen_depth))
+        pickle_graph_ds(nodes, options.output_file)
 
     elif options.graph_on:
-        nodes = validate_graph( parser, options )
-        nodes_txt = graph( nodes, int(options.gen_depth) )
-        write_graph_text( nodes_txt, options.output_file )
+        nodes = validate_graph(parser, options)
+        nodes_txt = graph(nodes, int(options.gen_depth))
+        write_graph_text(nodes_txt, options.output_file)
 
     else:
         sys.stderr.write("Error: You must select either -s or -p.\n")
@@ -117,21 +117,21 @@ def main():
 #
 ################################################################################
 
-def validate_scrape( parser, options ):
+def validate_scrape(parser, options):
     if options.input_file is None:
         sys.stderr.write("You must provide as input a file of names "
                          + "you wish to search for in the MGP.\n")
         parser.print_help()
         sys.exit(1)
     try:
-        namefile = open( options.input_file )
+        namefile = open(options.input_file)
     except IOError:
-        sys.stderr.write("Error: Input file %s does not exist.\n" % options.names_file )
+        sys.stderr.write("Error: Input file %s does not exist.\n" % options.names_file)
         parser.print_help()
         sys.exit(1)
 
     text = namefile.read().decode('utf8')
-    names = [ parseName(line) for line in text.split('\n') if len( line ) > 0 ]
+    names = [parseName(line) for line in text.split('\n') if len(line) > 0]
     namefile.close()
 
     return names
@@ -149,25 +149,25 @@ def validate_scrape( parser, options ):
 #
 ################################################################################
 
-def parseName( namestring ):
+def parseName(namestring):
 
     if ',' in namestring:
         kk = namestring.index(',')
         last = (namestring[0:kk]).strip().lower()
-        namestring = (namestring[kk:]).replace(',','')
-        names = [ last ] + [ name.strip().lower() for name in namestring.split() ]
+        namestring = (namestring[kk:]).replace(',', '')
+        names = [last] + [name.strip().lower() for name in namestring.split()]
 
     else:
-        namestring = namestring.replace(',','')
-        names = [ name.strip().lower() for name in namestring.split() ]
+        namestring = namestring.replace(',', '')
+        names = [name.strip().lower() for name in namestring.split()]
 
-    if len( names ) == 2:
-        return ( names[0], names[1], "" )
-    if len( names ) >= 3:
-        return ( names[0], names[1], names[2] )
+    if len(names) == 2:
+        return (names[0], names[1], "")
+    if len(names) >= 3:
+        return (names[0], names[1], names[2])
     else:
-        sys.stderr.write( ("Error: Only detected a single name in string %s. " +
-                           "Please provide a first and last name.\n") % namestring )
+        sys.stderr.write(("Error: Only detected a single name in string %s. " + \
+                          "Please provide a first and last name.\n") % namestring)
         sys.exit(1)
 
 ################################################################################
@@ -180,12 +180,12 @@ def parseName( namestring ):
 #
 ################################################################################
 
-def scrape( names, gens ):
+def scrape(names, gens):
     node_dict = {}
-    pairs = [ ( name, fetchIDNum(*name) ) for name in names ]
-    pairs = filter( lambda pair : pair[1] > 0, pairs )
+    pairs = [(name, fetchIDNum(*name)) for name in names]
+    pairs = filter(lambda pair: pair[1] > 0, pairs)
     for pair in pairs:
-        Node( pair[1], 0, gens, node_dict )
+        Node(pair[1], 0, gens, node_dict)
 
     return node_dict
 
@@ -198,12 +198,11 @@ def scrape( names, gens ):
 #
 ################################################################################
 
-def pickle_graph_ds( nodes, filename ):
+def pickle_graph_ds(nodes, filename):
     if filename is None:
         filename = "database.mgp"
-    pickle.dump( nodes, open( filename, 'wb') )
-    sys.stdout.write( 'Saved %d records to file %s.\n' \
-                          % ( len(nodes), filename ) )
+    pickle.dump(nodes, open(filename, 'wb'))
+    sys.stdout.write('Saved %d records to file %s.\n' % (len(nodes), filename))
 
 
 ################################################################################
@@ -218,16 +217,16 @@ def pickle_graph_ds( nodes, filename ):
 #
 ################################################################################
 
-def validate_graph( parser, options ):
+def validate_graph(parser, options):
     if options.input_file == None:
         sys.stderr.write("Error: You must provide a saved database as input.\n")
         parser.print_help()
         sys.exit(1)
 
     try:
-        nodes = pickle.load( open( options.input_file, 'rb' ) )
+        nodes = pickle.load(open(options.input_file, 'rb'))
     except:
-        sys.stderr.write("Error: Could not read file %s.\n" % options.input_file )
+        sys.stderr.write("Error: Could not read file %s.\n" % options.input_file)
         parser.print_help()
         sys.exit(1)
 
@@ -244,11 +243,11 @@ def validate_graph( parser, options ):
 #
 ################################################################################
 
-def graph( nodes, gen_depth ):
+def graph(nodes, gen_depth):
     node_string = ""
-    for (key,node) in nodes.items():
+    for (key, node) in nodes.items():
         if node.gen <= gen_depth:
-            node_string += node.dot_string( node.gen != gen_depth )
+            node_string += node.dot_string(node.gen != gen_depth)
     return node_string
 
 ################################################################################
@@ -262,14 +261,14 @@ def graph( nodes, gen_depth ):
 #
 ################################################################################
 
-def write_graph_text( node_text, filename ):
+def write_graph_text(node_text, filename):
 
     fulltext = GRAPH_FORMAT_STRING % node_text
     if filename is None:
-        sys.stdout.write( fulltext )
+        sys.stdout.write(fulltext)
     else:
         outfile = open(filename, 'w')
-        outfile.write( fulltext.encode('utf8') )
+        outfile.write(fulltext.encode('utf8'))
         outfile.close()
 
 ################################################################################
@@ -283,7 +282,7 @@ def write_graph_text( node_text, filename ):
 #
 ################################################################################
 
-def sameName( name1, name2 ):
+def sameName(name1, name2):
     last1 = name1[0].lower()
     last2 = name2[0].lower()
     first1 = name1[1].lower()
@@ -301,31 +300,31 @@ def sameName( name1, name2 ):
 #
 ################################################################################
 
-def fetchIDNum( last, first, middle ):
+def fetchIDNum(last, first, middle):
     if options.verbose_on:
-        sys.stdout.write("Searching MGP for %s, %s, %s.\n" % ( last, first, middle))
+        sys.stdout.write("Searching MGP for %s, %s, %s.\n" % (last, first, middle))
 
     url = 'http://genealogy.math.ndsu.nodak.edu/query-prep.php'
-    values = {'given_name' : '%s' % first, 'family_name' : '%s' %last,
-              'other_names' : middle }
+    values = {'given_name': '%s' % first, 'family_name': '%s' % last,
+              'other_names': middle}
 
     print values
 
-    text = (requests.post(url,values)).text
+    text = (requests.post(url, values)).text
 
-    pairs = [ (int(pair[0]), parseName( pair[1] ) ) for
-              pair in re.findall( u'<tr><td><a href="id.php\?id=(\d+)">(.+)</a></td>', text ) ]
-    pairs = filter( lambda pair :  sameName( pair[1], (last,first,middle) ), pairs )
+    pairs = [(int(pair[0]), parseName(pair[1])) for
+             pair in re.findall( u'<tr><td><a href="id.php\?id=(\d+)">(.+)</a></td>', text)]
+    pairs = filter(lambda pair: sameName(pair[1], (last, first, middle)), pairs)
 
     if len(pairs) == 0:
-        sys.stderr.write("Unable to find a record for %s, %s %s\n" % ( last, first, middle ) )
+        sys.stderr.write("Unable to find a record for %s, %s %s\n" % (last, first, middle))
         return -1
     if len(pairs) > 1:
-        sys.stderr.write("Found multiple records for %s, %s %s\n" % ( last, first, middle ) )
+        sys.stderr.write("Found multiple records for %s, %s %s\n" % (last, first, middle))
         return -1
     else:
         if options.verbose_on:
-            sys.stdout.write( "Found --- ID: %d \n" % ( pairs[0][0] ) )
+            sys.stdout.write("Found --- ID: %d\n" % pairs[0][0])
         return pairs[0][0]
 
 #############################################################################
@@ -348,67 +347,67 @@ def fetchIDNum( last, first, middle ):
 class Node:
     verbose_on = False
 
-    def __init__( self, id_number, gen, max_gen, node_dict ):
-        node_dict[ id_number ] = self;
+    def __init__(self, id_number, gen, max_gen, node_dict):
+        node_dict[id_number] = self
         self.id_num = id_number
         self.gen = gen
 
         url = "http://genealogy.math.ndsu.nodak.edu/id.php?id=%d" % id_number
         text = requests.post(url).text
 
-        self.extractPersonalData( text )
-        if Node.verbose_on :
-            sys.stdout.write( "Recovered record: %s %s %s %s\n" %
-                              (self.name, self.title, self.institution, self.year_of_doctorate ) )
+        self.extractPersonalData(text)
+        if Node.verbose_on:
+            sys.stdout.write("Recovered record: %s %s %s %s\n" %
+                             (self.name, self.title, self.institution, self.year_of_doctorate))
 
-        if gen >= max_gen : return
+        if gen >= max_gen: return
 
-        txt_start = text.find( "Advisor" )
+        txt_start = text.find("Advisor")
         if txt_start == -1:
             sys.stderr.write("Error finding advisor for %s\n" % (self.name))
             return
-        txt_stop = text.find( "Student" )
+        txt_stop = text.find("Student")
 
-        adv_text = text[ txt_start : txt_stop ]
+        adv_text = text[txt_start : txt_stop]
 
-        advs = [int( id_string )
+        advs = [int(id_string)
                 for id_string in re.findall('id.php\?id=(\d+)', adv_text)]
 
         for adv in advs:
             if adv in node_dict:
-                self.advised_by( node_dict[ adv ] )
+                self.advised_by(node_dict[adv])
             else:
-                advisor = Node( adv, gen + 1, max_gen, node_dict )
-                self.advised_by( advisor )
+                advisor = Node(adv, gen + 1, max_gen, node_dict)
+                self.advised_by(advisor)
 
-    def extractPersonalData( self, text ):
+    def extractPersonalData(self, text):
         self.year_of_doctorate = ""
         self.institution = ""
         self.nationality = ""
         self.advisors = []
 
-        results = re.findall( "<title>The Mathematics Genealogy Project - (.+)</title>", text)
-        if len( results ) > 0:
+        results = re.findall("<title>The Mathematics Genealogy Project - (.+)</title>", text)
+        if len(results) > 0:
             self.name = results[0]
 
-        results = re.findall( '<span style="margin-right: 0.5em">(.+)<span style=', text)
-        if len( results ) > 0:
+        results = re.findall('<span style="margin-right: 0.5em">(.+)<span style=', text)
+        if len(results) > 0:
             self.title = results[0]
 
         results = re.findall('margin-left: 0.5em">(.+)</span>(.+)</span>', text)
-        if len( results ) > 0:
+        if len(results) > 0:
             self.institution, self.year_of_doctorate = results[0]
 
-    def advised_by( self, other_node ):
-        self.advisors.append( other_node )
+    def advised_by(self, other_node):
+        self.advisors.append(other_node)
 
-    def dot_string( self, print_advs, brief=True ):
+    def dot_string(self, print_advs, brief=True):
         node_str = ""
         if brief:
-            name = textwrap.fill(self.name,20).replace('\n', '\\n')
+            name = textwrap.fill(self.name, 20).replace('\n', '\\n')
             node_str = "node%d[label=\"%s\\n%s\"];\n" % (self.id_num, self.name, self.year_of_doctorate)
         else:
-            institute = textwrap.fill(self.institution,25).replace('\n','\\n')
+            institute = textwrap.fill(self.institution, 25).replace('\n', '\\n')
             node_str = "node%d[label=\"%s\\n%s\\n%s\"];\n" % (self.id_num, self.name, institute, self.year_of_doctorate)
         if print_advs:
             for adv in self.advisors:
