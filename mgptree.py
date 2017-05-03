@@ -1,3 +1,5 @@
+# pylint: disable=missing-docstring
+
 ################################################################################
 # MGPTree Version 2.0 --- May 2, 2014
 # Copyright 2014 Joseph Thomas (jthomas@math.arizona.edu)
@@ -52,7 +54,10 @@
 ################################################################################
 
 import optparse
-import re, sys, pickle, textwrap
+import re
+import sys
+import pickle
+import textwrap
 import requests
 
 GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rectangle]\n %s}"
@@ -60,33 +65,31 @@ GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rect
 DEBUG = False
 
 def build_opt_parser():
-    p = optparse.OptionParser()
-    p.add_option('--verbose', '-v', dest="verbose_on", action="store_true",
-                 default=False, help="Print progress data to stderr.")
+    parser = optparse.OptionParser()
+    parser.add_option('--verbose', '-v', dest="verbose_on", action="store_true",
+                      default=False, help="Print progress data to stderr.")
+    parser.add_option('--scrape', '-s', dest="scrape_on", action="store_true",
+                      default=False, help="Recover data from the MGP.")
+    parser.add_option('--plot', '-p', dest="graph_on", action="store_true",
+                      default=False, help="Use graphviz to draw a geneaology.")
+    parser.add_option('--generations', '-g', dest="gen_depth", default=3,
+                      help="Determines how many generations into the past to search/print.")
+    parser.add_option('--input', '-i', dest="input_file", default=None)
+    parser.add_option('--output', '-o', dest="output_file", default=None)
 
-    p.add_option('--scrape', '-s', dest="scrape_on", action="store_true",
-                 default=False, help="Recover data from the MGP.")
-    p.add_option('--plot', '-p', dest="graph_on", action="store_true",
-                 default=False, help="Use graphviz to draw a geneaology.")
-    p.add_option('--generations', '-g', dest="gen_depth", default=3,
-                 help="Determines how many generations into the past to search/print.")
-
-    p.add_option('--input', '-i', dest="input_file", default=None)
-    p.add_option('--output', '-o', dest="output_file", default=None)
-    return p
+    return parser
 
 def main():
     print "In main"
     parser = build_opt_parser()
     global options
-    options, arguments = parser.parse_args()
+    options, _ = parser.parse_args()
     Node.verbose_on = options.verbose_on
 
     if options.verbose_on:
         sys.stdout.write("Verbose option is on. Printing progress.\n")
 
     operation_list = [options.scrape_on, options.graph_on]
-    true_count = operation_list.count(True)
 
     if options.scrape_on:
         names = validate_scrape(parser, options)
@@ -131,13 +134,13 @@ def validate_scrape(parser, options):
         sys.exit(1)
 
     text = namefile.read().decode('utf8')
-    names = [parseName(line) for line in text.split('\n') if len(line) > 0]
+    names = [parse_name(line) for line in text.split('\n') if len(line) > 0]
     namefile.close()
 
     return names
 
 ################################################################################
-# Procedure: parseName
+# Procedure: parse_name
 #
 # Input: A string consisting of a person's names, in the form "last,
 # first middle" (where the middle name is optional).
@@ -149,12 +152,12 @@ def validate_scrape(parser, options):
 #
 ################################################################################
 
-def parseName(namestring):
+def parse_name(namestring):
 
     if ',' in namestring:
-        kk = namestring.index(',')
-        last = (namestring[0:kk]).strip().lower()
-        namestring = (namestring[kk:]).replace(',', '')
+        comma = namestring.index(',')
+        last = (namestring[0:comma]).strip().lower()
+        namestring = (namestring[comma:]).replace(',', '')
         names = [last] + [name.strip().lower() for name in namestring.split()]
 
     else:
@@ -182,7 +185,7 @@ def parseName(namestring):
 
 def scrape(names, gens):
     node_dict = {}
-    pairs = [(name, fetchIDNum(*name)) for name in names]
+    pairs = [(name, fetch_id_num(*name)) for name in names]
     pairs = filter(lambda pair: pair[1] > 0, pairs)
     for pair in pairs:
         Node(pair[1], 0, gens, node_dict)
@@ -218,7 +221,7 @@ def pickle_graph_ds(nodes, filename):
 ################################################################################
 
 def validate_graph(parser, options):
-    if options.input_file == None:
+    if options.input_file is None:
         sys.stderr.write("Error: You must provide a saved database as input.\n")
         parser.print_help()
         sys.exit(1)
@@ -245,7 +248,7 @@ def validate_graph(parser, options):
 
 def graph(nodes, gen_depth):
     node_string = ""
-    for (key, node) in nodes.items():
+    for _, node in nodes.iteritems():
         if node.gen <= gen_depth:
             node_string += node.dot_string(node.gen != gen_depth)
     return node_string
@@ -272,7 +275,7 @@ def write_graph_text(node_text, filename):
         outfile.close()
 
 ################################################################################
-# Procedure: sameName
+# Procedure: same_name
 #
 # Input: A pair of names, which are tuples of the form (last, first, middle).
 #
@@ -282,7 +285,7 @@ def write_graph_text(node_text, filename):
 #
 ################################################################################
 
-def sameName(name1, name2):
+def same_name(name1, name2):
     last1 = name1[0].lower()
     last2 = name2[0].lower()
     first1 = name1[1].lower()
@@ -290,7 +293,7 @@ def sameName(name1, name2):
     return last1 == last2 and first1 == first2
 
 ################################################################################
-# Procedure: fetchIDNum
+# Procedure: fetch_id_num
 #
 # Input: Last, first, and middle names (strings) for a given person.
 #
@@ -300,7 +303,7 @@ def sameName(name1, name2):
 #
 ################################################################################
 
-def fetchIDNum(last, first, middle):
+def fetch_id_num(last, first, middle):
     if options.verbose_on:
         sys.stdout.write("Searching MGP for %s, %s, %s.\n" % (last, first, middle))
 
@@ -312,11 +315,11 @@ def fetchIDNum(last, first, middle):
 
     text = (requests.post(url, values)).text
 
-    pairs = [(int(pair[0]), parseName(pair[1])) for
-             pair in re.findall( u'<tr><td><a href="id.php\?id=(\d+)">(.+)</a></td>', text)]
-    pairs = filter(lambda pair: sameName(pair[1], (last, first, middle)), pairs)
+    pairs = [(int(pair[0]), parse_name(pair[1])) for
+             pair in re.findall(r'<tr><td><a href="id.php\?id=(\d+)">(.+)</a></td>', text)]
+    pairs = [pair for pair in pairs if same_name(pair[1], (last, first, middle))]
 
-    if len(pairs) == 0:
+    if pairs:
         sys.stderr.write("Unable to find a record for %s, %s %s\n" % (last, first, middle))
         return -1
     if len(pairs) > 1:
@@ -344,7 +347,7 @@ def fetchIDNum(last, first, middle):
 #
 #############################################################################
 
-class Node:
+class Node(object):
     verbose_on = False
 
     def __init__(self, id_number, gen, max_gen, node_dict):
@@ -355,12 +358,13 @@ class Node:
         url = "http://genealogy.math.ndsu.nodak.edu/id.php?id=%d" % id_number
         text = requests.post(url).text
 
-        self.extractPersonalData(text)
+        self.extract_personal_data(text)
         if Node.verbose_on:
             sys.stdout.write("Recovered record: %s %s %s %s\n" %
                              (self.name, self.title, self.institution, self.year_of_doctorate))
 
-        if gen >= max_gen: return
+        if gen >= max_gen:
+            return
 
         txt_start = text.find("Advisor")
         if txt_start == -1:
@@ -371,7 +375,7 @@ class Node:
         adv_text = text[txt_start : txt_stop]
 
         advs = [int(id_string)
-                for id_string in re.findall('id.php\?id=(\d+)', adv_text)]
+                for id_string in re.findall(r'id.php\?id=(\d+)', adv_text)]
 
         for adv in advs:
             if adv in node_dict:
@@ -380,22 +384,22 @@ class Node:
                 advisor = Node(adv, gen + 1, max_gen, node_dict)
                 self.advised_by(advisor)
 
-    def extractPersonalData(self, text):
+    def extract_personal_data(self, text):
         self.year_of_doctorate = ""
         self.institution = ""
         self.nationality = ""
         self.advisors = []
 
-        results = re.findall("<title>The Mathematics Genealogy Project - (.+)</title>", text)
-        if len(results) > 0:
+        results = re.findall(r'<title>The Mathematics Genealogy Project - (.+)</title>', text)
+        if results:
             self.name = results[0]
 
-        results = re.findall('<span style="margin-right: 0.5em">(.+)<span style=', text)
-        if len(results) > 0:
+        results = re.findall(r'<span style="margin-right: 0.5em">(.+)<span style=', text)
+        if results:
             self.title = results[0]
 
-        results = re.findall('margin-left: 0.5em">(.+)</span>(.+)</span>', text)
-        if len(results) > 0:
+        results = re.findall(r'margin-left: 0.5em">(.+)</span>(.+)</span>', text)
+        if results:
             self.institution, self.year_of_doctorate = results[0]
 
     def advised_by(self, other_node):
@@ -405,13 +409,15 @@ class Node:
         node_str = ""
         if brief:
             name = textwrap.fill(self.name, 20).replace('\n', '\\n')
-            node_str = "node%d[label=\"%s\\n%s\"];\n" % (self.id_num, self.name, self.year_of_doctorate)
+            node_str = "node%d[label=\"%s\\n%s\"];\n" % \
+                       (self.id_num, name, self.year_of_doctorate)
         else:
             institute = textwrap.fill(self.institution, 25).replace('\n', '\\n')
-            node_str = "node%d[label=\"%s\\n%s\\n%s\"];\n" % (self.id_num, self.name, institute, self.year_of_doctorate)
+            node_str = "node%d[label=\"%s\\n%s\\n%s\"];\n" % \
+                       (self.id_num, self.name, institute, self.year_of_doctorate)
         if print_advs:
             for adv in self.advisors:
-                node_str += "node%d->node%d;\n" % (adv.id_num, self.id_num);
+                node_str += "node%d->node%d;\n" % (adv.id_num, self.id_num)
 
         return node_str
 
