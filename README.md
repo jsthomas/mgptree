@@ -14,7 +14,8 @@ example
 ## Install
 
 You will need to install [`graphviz`](http://www.graphviz.org/), and
-possibly `virtualenv` as well. Then:
+possibly `virtualenv` as well (depending on where you prefer to
+install your python libraries). Here is how I set up:
 
     $ virtualenv venv
     $ venv/bin/activate
