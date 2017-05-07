@@ -181,9 +181,9 @@ def fetch_id_num(last, first, middle):
     logger.info("Searching MGP for primary key. last=%s, first=%s, middle=%s",
                 last, first, middle)
 
-    url = 'http://genealogy.math.ndsu.nodak.edu/query-prep.php'
-    values = {'given_name': '%s' % first,
-              'family_name': '%s' % last,
+    url = 'https://genealogy.math.ndsu.nodak.edu/query-prep.php'
+    values = {'given_name': first,
+              'family_name': last,
               'other_names': middle}
 
     text = (requests.post(url, values)).text
@@ -193,14 +193,16 @@ def fetch_id_num(last, first, middle):
     pairs = [pair for pair in pairs if same_name(pair[1], (last, first, middle))]
 
     if not pairs:
-        sys.stderr.write("Unable to find a record for %s, %s %s\n" % (last, first, middle))
+        logger.error("Unable to find a ID for name. last=%s, first=%s middle=%s",
+                     last, first, middle)
         return None
 
     if len(pairs) > 1:
-        sys.stderr.write("Found multiple records for %s, %s %s\n" % (last, first, middle))
+        logger.error("Found multiple IDs for name. last=%s, first=%s middle=%s",
+                     last, first, middle)
         return None
 
-    logging.info("Found ID for name. name=(%s,%s,%s) id=%d",
+    logging.info("Found ID for name. last=%s, first=%s, middle=%s, id=%d",
                  last, first, middle, pairs[0][0])
     return pairs[0][0]
 
@@ -222,8 +224,14 @@ class Node(object):
         self.id_num = id_number
         self.gen = gen
 
-        url = "http://genealogy.math.ndsu.nodak.edu/id.php?id=%d" % id_number
-        text = requests.post(url).text
+        self.name = ""
+        self.year_of_doctorate = ""
+        self.institution = ""
+        self.nationality = ""
+        self.advisors = []
+
+        url = "https://genealogy.math.ndsu.nodak.edu/id.php?id=%d" % id_number
+        text = requests.get(url).text
 
         self.extract_personal_data(text)
         logger.info("Recovered record: %s %s %s %s\n",
@@ -252,12 +260,8 @@ class Node(object):
 
     def extract_personal_data(self, text):
         """Search the input web page text for bio data."""
-        self.year_of_doctorate = ""
-        self.institution = ""
-        self.nationality = ""
-        self.advisors = []
 
-        results = re.findall(r'<title>The Mathematics Genealogy Project - (.+)</title>', text)
+        results = re.findall(r'<title>(.+) - The Mathematics Genealogy Project</title>', text)
         if results:
             self.name = results[0]
 
@@ -275,6 +279,7 @@ class Node(object):
 
     def dot_string(self, print_advs, brief=True):
         """Emit a dot description for this record."""
+
         node_str = ""
         if brief:
             name = textwrap.fill(self.name, 20).replace('\n', '\\n')
