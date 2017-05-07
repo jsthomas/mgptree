@@ -1,57 +1,4 @@
-# pylint: disable=missing-docstring
-
-################################################################################
-# MGPTree Version 2.0 --- May 2, 2014
-# Copyright 2014 Joseph Thomas (jthomas@math.arizona.edu)
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-#######################################################################
-#
-# Program Description: This python script extracts data from the
-# Mathematics Genealogy Project's (MGP) website and provides a way of
-# visualizing this data.
-#
-# For an extensive example of how to use this program, please see:
-#
-# http://math.arizona.edu/~jthomas/math-genealogy-visualizer.html
-#
-# Here is a typical use-case:
-#
-# 1) A user wishes to visualize the genealogy of a particular
-# collection of mathematicians, so he writes their names down in the
-# file "names.txt".
-#
-# 2) The user gives names.txt to mgptree as input and uses the "find
-# IDs" option to search for the MGP IDs that correspond to those
-# names. The script records this data in a file.
-#
-# 3) In the event some of the names are not found, the user can fill
-# in the remaining ID data by hand.
-#
-# 3) The user gives the ID data to mgptree as input, along with a
-# number that specifies the number indicating how many generations
-# back the program should search.
-#
-# 4) mgptree produces a database as output. (This step takes time.)
-#
-# 5) Now, using the database, the user can rapidly produce various
-# visualizations of the data.
-#
-# Since the options to the program are handled by optparse, I will not
-# document them here.
-################################################################################
+"""A CLI tool for scraping the mathematics genealogy project and generating family trees."""
 
 import optparse
 import re
@@ -65,6 +12,7 @@ GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rect
 DEBUG = False
 
 def build_opt_parser():
+    """Construct a CLI option parser for the application."""
     parser = optparse.OptionParser()
     parser.add_option('--verbose', '-v', dest="verbose_on", action="store_true",
                       default=False, help="Print progress data to stderr.")
@@ -79,27 +27,26 @@ def build_opt_parser():
 
     return parser
 
-def main():
-    print "In main"
+def main():  # pylint: disable=missing-docstring
     parser = build_opt_parser()
-    global options
-    options, _ = parser.parse_args()
-    Node.verbose_on = options.verbose_on
+    global OPTIONS
+    OPTIONS, _ = parser.parse_args()
+    Node.verbose_on = OPTIONS.verbose_on
 
-    if options.verbose_on:
+    if OPTIONS.verbose_on:
         sys.stdout.write("Verbose option is on. Printing progress.\n")
 
-    operation_list = [options.scrape_on, options.graph_on]
+    operation_list = [OPTIONS.scrape_on, OPTIONS.graph_on]
 
-    if options.scrape_on:
-        names = validate_scrape(parser, options)
-        nodes = scrape(names, int(options.gen_depth))
-        pickle_graph_ds(nodes, options.output_file)
+    if OPTIONS.scrape_on:
+        names = validate_scrape(parser, OPTIONS)
+        nodes = scrape(names, int(OPTIONS.gen_depth))
+        pickle_graph_ds(nodes, OPTIONS.output_file)
 
-    elif options.graph_on:
-        nodes = validate_graph(parser, options)
-        nodes_txt = graph(nodes, int(options.gen_depth))
-        write_graph_text(nodes_txt, options.output_file)
+    elif OPTIONS.graph_on:
+        nodes = validate_graph(parser, OPTIONS)
+        nodes_txt = graph(nodes, int(OPTIONS.gen_depth))
+        write_graph_text(nodes_txt, OPTIONS.output_file)
 
     else:
         sys.stderr.write("Error: You must select either -s or -p.\n")
@@ -108,19 +55,9 @@ def main():
 
     sys.exit(0)
 
-
-################################################################################
-# Procedure: validate_scrape
-#
-# Input: Parser and options objects from optparse
-#
-# Output: A list of well-formed name tuples.
-#
-# Effects: Checks the options object to confirm the inputs are well formed.
-#
-################################################################################
-
+# TODO: Refactor options to be either completely global or not.
 def validate_scrape(parser, options):
+    """Consume and validate user input options for scraping."""
     if options.input_file is None:
         sys.stderr.write("You must provide as input a file of names "
                          + "you wish to search for in the MGP.\n")
@@ -139,20 +76,9 @@ def validate_scrape(parser, options):
 
     return names
 
-################################################################################
-# Procedure: parse_name
-#
-# Input: A string consisting of a person's names, in the form "last,
-# first middle" (where the middle name is optional).
-#
-# Output: A tuple of those same names, this time in the form (last,
-# first, middle) where each name has been stripped of whitespace and
-# set to lowercase. If the middle name does not exist, it will be
-# listed as an empty string.
-#
-################################################################################
 
 def parse_name(namestring):
+    """Normalize a name string to a name tuple."""
 
     if ',' in namestring:
         comma = namestring.index(',')
@@ -173,17 +99,17 @@ def parse_name(namestring):
                           "Please provide a first and last name.\n") % namestring)
         sys.exit(1)
 
-################################################################################
-# Procedure: scrape
-#
-# Input: A list of names to search for and an integer number of
-# generations to search back.
-#
-# Output: A dictionary object mapping MGP IDs to Node objects.
-#
-################################################################################
 
 def scrape(names, gens):
+    """Scrape N generations of records from the MGP website.
+
+    Arguments:
+    names - A list of name tuples.
+    gens - An integer number of generations to search back from the initial names.
+
+    Returns:
+    A dictionary mapping MGP primary keys to node objects.
+    """
     node_dict = {}
     pairs = [(name, fetch_id_num(*name)) for name in names]
     pairs = filter(lambda pair: pair[1] > 0, pairs)
@@ -192,35 +118,17 @@ def scrape(names, gens):
 
     return node_dict
 
-################################################################################
-# Procedure: pickle_graph_ds
-#
-# Input: A collection of MGP nodes.
-#
-# Effect: Writes the nodes to a file and prints a message recording this.
-#
-################################################################################
 
 def pickle_graph_ds(nodes, filename):
+    """Persist a dictionary of tree nodes to disk."""
     if filename is None:
         filename = "database.mgp"
     pickle.dump(nodes, open(filename, 'wb'))
     sys.stdout.write('Saved %d records to file %s.\n' % (len(nodes), filename))
 
 
-################################################################################
-# Procedure: validate_graph
-#
-# Input: Parser and options objects from optparse.
-#
-# Effects: Checks user input when in plotting mode, aborts if the
-# input is not well formed.
-#
-# Output: An un-pickled graph data structure.
-#
-################################################################################
-
 def validate_graph(parser, options):
+    """Consume and validate user input OPTIONS for graphing."""
     if options.input_file is None:
         sys.stderr.write("Error: You must provide a saved database as input.\n")
         parser.print_help()
@@ -235,37 +143,19 @@ def validate_graph(parser, options):
 
     return nodes
 
-################################################################################
-# Procedure: graph
-#
-# Input: A graph data structure (nodes) and a generation number. Nodes
-# whose generation number is greater than the input generation number
-# will not be displayed.
-#
-# Output: A string representation of the graph.
-#
-################################################################################
 
 def graph(nodes, gen_depth):
+    """Emit dot code for nodes below a certain generation."""
     node_string = ""
     for _, node in nodes.iteritems():
         if node.gen <= gen_depth:
             node_string += node.dot_string(node.gen != gen_depth)
     return node_string
 
-################################################################################
-# Procedure: graph
-#
-# Input: A string containing a textual representation of the nodes in
-# the graph, and a filename.
-#
-# Effect: A textual representation of the graph is written to stdout
-# or the disk (to a file with the input filename).
-#
-################################################################################
 
+# TODO: Consider refactor here.
 def write_graph_text(node_text, filename):
-
+    """Emit a complete dotfile to disk or stdout."""
     fulltext = GRAPH_FORMAT_STRING % node_text
     if filename is None:
         sys.stdout.write(fulltext)
@@ -274,44 +164,24 @@ def write_graph_text(node_text, filename):
         outfile.write(fulltext.encode('utf8'))
         outfile.close()
 
-################################################################################
-# Procedure: same_name
-#
-# Input: A pair of names, which are tuples of the form (last, first, middle).
-#
-# Output: A boolean, indicating whether the names agree.
-#
-# Caveats: Currently, middle names are not checked.
-#
-################################################################################
 
 def same_name(name1, name2):
+    """Test if two name tuples are equivalent."""
     last1 = name1[0].lower()
     last2 = name2[0].lower()
     first1 = name1[1].lower()
     first2 = name2[1].lower()
     return last1 == last2 and first1 == first2
 
-################################################################################
-# Procedure: fetch_id_num
-#
-# Input: Last, first, and middle names (strings) for a given person.
-#
-# Output: An integer that is -1 if the name was not found on the MGP
-# (or the search returned multiple hits), or the ID number assigned by
-# the MGP otherwise.
-#
-################################################################################
 
 def fetch_id_num(last, first, middle):
-    if options.verbose_on:
+    """Attempt to determine the MGP primary key for the input name."""
+    if OPTIONS.verbose_on:
         sys.stdout.write("Searching MGP for %s, %s, %s.\n" % (last, first, middle))
 
     url = 'http://genealogy.math.ndsu.nodak.edu/query-prep.php'
     values = {'given_name': '%s' % first, 'family_name': '%s' % last,
               'other_names': middle}
-
-    print values
 
     text = (requests.post(url, values)).text
 
@@ -326,28 +196,23 @@ def fetch_id_num(last, first, middle):
         sys.stderr.write("Found multiple records for %s, %s %s\n" % (last, first, middle))
         return -1
     else:
-        if options.verbose_on:
+        if OPTIONS.verbose_on:
             sys.stdout.write("Found --- ID: %d\n" % pairs[0][0])
         return pairs[0][0]
 
-#############################################################################
-#
-#  Class Node
-#
-#  Each instance of the Node class is responsible for recording all of
-#  the data that has been collected about a particular
-#  mathematician. Typically this information comes from entries in the
-#  Mathematics Genealogy project, and thus will not be complete.
-#
-#  The most important piece of data the Node class manages is the
-#  (unique) ID number assigned to each mathematician by the
-#  MGP. This integer provides the best way
-#  to search for a given mathematician, since mapping names to people
-#  can be quite difficult.
-#
-#############################################################################
 
 class Node(object):
+    """Nodes record all data collected on a particular mathematician.
+
+    Typically this information comes from entries in the
+    Mathematics Genealogy project, and thus will not be complete.
+
+    The most important piece of data the Node class manages is the
+    (unique) ID number assigned to each mathematician by the MGP. This
+    integer provides the best way to search for a given mathematician,
+    since mapping names to people can be quite difficult.
+    """
+
     verbose_on = False
 
     def __init__(self, id_number, gen, max_gen, node_dict):
@@ -385,6 +250,7 @@ class Node(object):
                 self.advised_by(advisor)
 
     def extract_personal_data(self, text):
+        """Search the input web page text for bio data."""
         self.year_of_doctorate = ""
         self.institution = ""
         self.nationality = ""
@@ -403,9 +269,11 @@ class Node(object):
             self.institution, self.year_of_doctorate = results[0]
 
     def advised_by(self, other_node):
+        """Record an advisor-advisee relationship with another node."""
         self.advisors.append(other_node)
 
     def dot_string(self, print_advs, brief=True):
+        """Emit a dot description for this record."""
         node_str = ""
         if brief:
             name = textwrap.fill(self.name, 20).replace('\n', '\\n')
@@ -421,15 +289,6 @@ class Node(object):
 
         return node_str
 
-#############################################################################
-# End of Class Node
-#############################################################################
 
-#############################################################################
-# This piece of the code is responsible for making this file behave
-# like a script. It says that when we call up the program from the
-# command line, the "main" procedure is the first procedure that
-# should be run.
-#############################################################################
 if __name__ == '__main__':
     main()
