@@ -22,7 +22,7 @@ install your python libraries). Here is how I set up:
     (venv) $ pip install requirements.txt
     (venv) $ python mgptree.py -h
 
-should show you the command line syntax for the tool.
+This should show you the command line syntax for the tool.
 
 ## Usage
 
