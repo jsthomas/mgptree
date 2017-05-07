@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rectangle]\n %s}"
-OPTIONS = None
 
 def build_opt_parser():
     """Construct a CLI option parser for the application."""
@@ -23,7 +22,7 @@ def build_opt_parser():
     parser.add_option('--scrape', '-s', dest="scrape_on", action="store_true",
                       default=False, help="Recover data from the MGP.")
     parser.add_option('--plot', '-p', dest="graph_on", action="store_true",
-                      default=False, help="Use graphviz to draw a geneaology.")
+                      default=False, help="Use graphviz to draw a genealogy.")
     parser.add_option('--generations', '-g', dest="gen_depth", default=3,
                       help="Determines how many generations into the past to search/print.")
     parser.add_option('--input', '-i', dest="input_file", default=None)
@@ -33,19 +32,18 @@ def build_opt_parser():
 
 
 def main():  # pylint: disable=missing-docstring
-    global OPTIONS
     parser = build_opt_parser()
-    OPTIONS, _ = parser.parse_args()
+    options, _ = parser.parse_args()
 
-    if OPTIONS.scrape_on:
-        names = validate_scrape(parser, OPTIONS)
-        nodes = scrape(names, int(OPTIONS.gen_depth))
-        pickle_graph_ds(nodes, OPTIONS.output_file)
+    if options.scrape_on:
+        names = validate_scrape(parser, options)
+        nodes = scrape(names, int(options.gen_depth))
+        pickle_graph_ds(nodes, options.output_file)
 
-    elif OPTIONS.graph_on:
-        nodes = validate_graph(parser, OPTIONS)
-        nodes_txt = graph(nodes, int(OPTIONS.gen_depth))
-        write_graph_text(nodes_txt, OPTIONS.output_file)
+    elif options.graph_on:
+        nodes = validate_graph(parser, options)
+        nodes_txt = graph(nodes, int(options.gen_depth))
+        write_graph_text(nodes_txt, options.output_file)
 
     else:
         sys.stderr.write("Error: You must select either -s or -p.\n")
@@ -55,7 +53,6 @@ def main():  # pylint: disable=missing-docstring
     sys.exit(0)
 
 
-# TODO: Refactor options to be either completely global or not.
 def validate_scrape(parser, options):
     """Consume and validate user input options for scraping."""
     if options.input_file is None:
@@ -130,7 +127,7 @@ def pickle_graph_ds(nodes, filename):
 
 
 def validate_graph(parser, options):
-    """Consume and validate user input OPTIONS for graphing."""
+    """Consume and validate user input options for graphing."""
     if options.input_file is None:
         sys.stderr.write("Error: You must provide a saved database as input.\n")
         parser.print_help()
@@ -155,9 +152,9 @@ def graph(nodes, gen_depth):
     return node_string
 
 
-# TODO: Consider refactor here.
 def write_graph_text(node_text, filename):
     """Emit a complete dotfile to disk or stdout."""
+
     fulltext = GRAPH_FORMAT_STRING % node_text
     if filename is None:
         sys.stdout.write(fulltext)
@@ -188,23 +185,23 @@ def fetch_id_num(last, first, middle):
 
     text = (requests.post(url, values)).text
 
-    pairs = [(int(pair[0]), parse_name(pair[1])) for
-             pair in re.findall(r'<tr><td><a href="id.php\?id=(\d+)">(.+)</a></td>', text)]
-    pairs = [pair for pair in pairs if same_name(pair[1], (last, first, middle))]
+    matches = re.findall(r'<tr><td><a href="id.php\?id=(\d+)">(.+)</a></td>', text)
+    pairs = [(int(pair[0]), parse_name(pair[1])) for pair in matches]
+    ids = [p[0] for p in pairs if same_name(p[1], (last, first, middle))]
 
-    if not pairs:
+    if not ids:
         logger.error("Unable to find a ID for name. last=%s, first=%s middle=%s",
                      last, first, middle)
         return None
 
-    if len(pairs) > 1:
+    if len(ids) > 1:
         logger.error("Found multiple IDs for name. last=%s, first=%s middle=%s",
                      last, first, middle)
         return None
 
     logging.info("Found ID for name. last=%s, first=%s, middle=%s, id=%d",
-                 last, first, middle, pairs[0][0])
-    return pairs[0][0]
+                 last, first, middle, ids[0])
+    return ids[0]
 
 
 class Node(object):
@@ -218,6 +215,8 @@ class Node(object):
     integer provides the best way to search for a given mathematician,
     since mapping names to people can be quite difficult.
     """
+
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, id_number, gen, max_gen, node_dict):
         node_dict[id_number] = self
@@ -242,10 +241,11 @@ class Node(object):
 
         txt_start = text.find("Advisor")
         if txt_start == -1:
-            sys.stderr.write("Error finding advisor for %s\n" % (self.name))
+            logger.error("Failed to find advisor. id=%s, name=%s",
+                         self.id_num, self.name)
             return
-        txt_stop = text.find("Student")
 
+        txt_stop = text.find("Student")
         adv_text = text[txt_start : txt_stop]
 
         advs = [int(id_string)
