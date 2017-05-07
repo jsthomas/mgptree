@@ -1,5 +1,6 @@
 """A CLI tool for scraping the mathematics genealogy project and generating family trees."""
 
+import logging
 import optparse
 import re
 import sys
@@ -7,15 +8,18 @@ import pickle
 import textwrap
 import requests
 
-GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rectangle]\n %s}"
 
-DEBUG = False
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(message)s',
+                    datefmt='%m/%d/%Y %I:%M:%S %p')
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+GRAPH_FORMAT_STRING = "digraph G{\n node[width = 0.5 fontname=Courier shape=rectangle]\n %s}"
+OPTIONS = None
 
 def build_opt_parser():
     """Construct a CLI option parser for the application."""
     parser = optparse.OptionParser()
-    parser.add_option('--verbose', '-v', dest="verbose_on", action="store_true",
-                      default=False, help="Print progress data to stderr.")
     parser.add_option('--scrape', '-s', dest="scrape_on", action="store_true",
                       default=False, help="Recover data from the MGP.")
     parser.add_option('--plot', '-p', dest="graph_on", action="store_true",
@@ -27,16 +31,11 @@ def build_opt_parser():
 
     return parser
 
+
 def main():  # pylint: disable=missing-docstring
-    parser = build_opt_parser()
     global OPTIONS
+    parser = build_opt_parser()
     OPTIONS, _ = parser.parse_args()
-    Node.verbose_on = OPTIONS.verbose_on
-
-    if OPTIONS.verbose_on:
-        sys.stdout.write("Verbose option is on. Printing progress.\n")
-
-    operation_list = [OPTIONS.scrape_on, OPTIONS.graph_on]
 
     if OPTIONS.scrape_on:
         names = validate_scrape(parser, OPTIONS)
@@ -54,6 +53,7 @@ def main():  # pylint: disable=missing-docstring
         sys.exit(1)
 
     sys.exit(0)
+
 
 # TODO: Refactor options to be either completely global or not.
 def validate_scrape(parser, options):
@@ -111,10 +111,12 @@ def scrape(names, gens):
     A dictionary mapping MGP primary keys to node objects.
     """
     node_dict = {}
-    pairs = [(name, fetch_id_num(*name)) for name in names]
-    pairs = filter(lambda pair: pair[1] > 0, pairs)
-    for pair in pairs:
-        Node(pair[1], 0, gens, node_dict)
+
+    for name in names:
+        mgp_id = fetch_id_num(*name)
+        if mgp_id is None:
+            continue
+        Node(mgp_id, 0, gens, node_dict)
 
     return node_dict
 
@@ -136,8 +138,8 @@ def validate_graph(parser, options):
 
     try:
         nodes = pickle.load(open(options.input_file, 'rb'))
-    except:
-        sys.stderr.write("Error: Could not read file %s.\n" % options.input_file)
+    except IOError:
+        sys.stderr.write("Error: Could not read file %s.", options.input_file)
         parser.print_help()
         sys.exit(1)
 
@@ -176,11 +178,12 @@ def same_name(name1, name2):
 
 def fetch_id_num(last, first, middle):
     """Attempt to determine the MGP primary key for the input name."""
-    if OPTIONS.verbose_on:
-        sys.stdout.write("Searching MGP for %s, %s, %s.\n" % (last, first, middle))
+    logger.info("Searching MGP for primary key. last=%s, first=%s, middle=%s",
+                last, first, middle)
 
     url = 'http://genealogy.math.ndsu.nodak.edu/query-prep.php'
-    values = {'given_name': '%s' % first, 'family_name': '%s' % last,
+    values = {'given_name': '%s' % first,
+              'family_name': '%s' % last,
               'other_names': middle}
 
     text = (requests.post(url, values)).text
@@ -189,16 +192,17 @@ def fetch_id_num(last, first, middle):
              pair in re.findall(r'<tr><td><a href="id.php\?id=(\d+)">(.+)</a></td>', text)]
     pairs = [pair for pair in pairs if same_name(pair[1], (last, first, middle))]
 
-    if pairs:
+    if not pairs:
         sys.stderr.write("Unable to find a record for %s, %s %s\n" % (last, first, middle))
-        return -1
+        return None
+
     if len(pairs) > 1:
         sys.stderr.write("Found multiple records for %s, %s %s\n" % (last, first, middle))
-        return -1
-    else:
-        if OPTIONS.verbose_on:
-            sys.stdout.write("Found --- ID: %d\n" % pairs[0][0])
-        return pairs[0][0]
+        return None
+
+    logging.info("Found ID for name. name=(%s,%s,%s) id=%d",
+                 last, first, middle, pairs[0][0])
+    return pairs[0][0]
 
 
 class Node(object):
@@ -213,8 +217,6 @@ class Node(object):
     since mapping names to people can be quite difficult.
     """
 
-    verbose_on = False
-
     def __init__(self, id_number, gen, max_gen, node_dict):
         node_dict[id_number] = self
         self.id_num = id_number
@@ -224,9 +226,8 @@ class Node(object):
         text = requests.post(url).text
 
         self.extract_personal_data(text)
-        if Node.verbose_on:
-            sys.stdout.write("Recovered record: %s %s %s %s\n" %
-                             (self.name, self.title, self.institution, self.year_of_doctorate))
+        logger.info("Recovered record: %s %s %s %s\n",
+                    self.name, self.title, self.institution, self.year_of_doctorate)
 
         if gen >= max_gen:
             return
